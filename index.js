@@ -15,7 +15,7 @@ const port = process.env.PORT || 8080;
 
 // Variables d'environnement Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 const apiKey = process.env.API_KEY; // Clé pour sécuriser l'API
 
 // Middlewares
