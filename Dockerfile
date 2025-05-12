@@ -1,30 +1,28 @@
-# Utiliser une image de base plus légère
 FROM node:18-slim
 
-# Installer FFmpeg et les dépendances nécessaires pour VP8/VP9
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libvpx-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Définir le répertoire de travail
 WORKDIR /usr/src/app
 
-# Copier les fichiers de dépendances et installer
+# Installation des dépendances
 COPY package*.json ./
 RUN npm install
 
-# Copier le reste des fichiers de l'application
+# Copie des fichiers sources
 COPY . .
 
-# Exposer le port utilisé par Google Cloud Run
+# Installation de FFmpeg
+RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
+
+# Création du répertoire temporaire avec les bonnes permissions
+RUN mkdir -p /usr/src/app/temp && \
+    chmod 777 /usr/src/app/temp && \
+    # Créer également un répertoire de secours au cas où
+    mkdir -p /tmp/segmenter && \
+    chmod 777 /tmp/segmenter
+
+# Exposition du port
 EXPOSE 8080
 
-# Créer un utilisateur non-root pour exécuter l'application
-RUN useradd -m appuser
-USER appuser
-
-# Commande pour démarrer l'application
+# Démarrage de l'application
 CMD ["node", "index.js"]
+
 
