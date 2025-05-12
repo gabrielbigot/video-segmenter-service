@@ -15,7 +15,7 @@ const port = process.env.PORT || 8080;
 
 // Variables d'environnement Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 const apiKey = process.env.API_KEY; // Clé pour sécuriser l'API
 
 // Middlewares
@@ -32,7 +32,7 @@ const verifyApiKey = (req, res, next) => {
   next();
 };
 
-// Fonction pour exécuter FFmpeg avec transcodage en VP8 et Opus
+// Fonction pour exécuter FFmpeg avec transcodage en VP8
 const runFFmpeg = (inputPath, outputPattern, segmentDuration) => {
   return new Promise((resolve, reject) => {
     console.log(`Running FFmpeg: input=${inputPath}, output=${outputPattern}, duration=${segmentDuration}`);
@@ -40,7 +40,7 @@ const runFFmpeg = (inputPath, outputPattern, segmentDuration) => {
     const args = [
       '-i', inputPath,
       '-c:v', 'libvpx', // Transcoder la vidéo en VP8 (compatible avec WebM)
-      '-c:a', 'libopus', // Transcoder l'audio en Opus (compatible avec WebM)
+      '-c:a', 'copy',   // Garder l'audio tel quel (Opus est compatible avec WebM)
       '-map', '0',
       '-f', 'segment',
       '-segment_time', segmentDuration.toString(),
@@ -55,12 +55,10 @@ const runFFmpeg = (inputPath, outputPattern, segmentDuration) => {
     
     process.stdout.on('data', data => {
       stdoutData += data.toString();
-      console.log(`FFmpeg stdout: ${data.toString()}`);
     });
     
     process.stderr.on('data', data => {
       stderrData += data.toString();
-      console.log(`FFmpeg stderr: ${data.toString()}`);
     });
     
     process.on('close', code => {
@@ -91,25 +89,11 @@ app.post('/segment', verifyApiKey, async (req, res) => {
     
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("Configuration Supabase manquante dans les variables d'environnement");
-      return res.status(500).json({ 
-        error: "Configuration Supabase manquante",
-        supabaseUrl: supabaseUrl ? "défini" : "non défini",
-        supabaseServiceKey: supabaseServiceKey ? "défini" : "non défini"
-      });
+      return res.status(500).json({ error: "Configuration Supabase manquante" });
     }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     console.log('Supabase client initialized');
-    
-    // Vérifier que le dossier temp existe et a les bonnes permissions
-    const tempDir = path.join(__dirname, 'temp');
-    try {
-      await fs.mkdir(tempDir, { recursive: true });
-      console.log('Temp directory created or already exists:', tempDir);
-    } catch (e) {
-      console.error('Error creating temp directory:', e);
-      return res.status(500).json({ error: `Erreur création dossier temp: ${e.message}` });
-    }
     
     // Télécharger la vidéo
     console.log(`Downloading video from ${bucket}/${videoPath}`);
@@ -122,17 +106,16 @@ app.post('/segment', verifyApiKey, async (req, res) => {
     
     console.log('Video downloaded successfully, size:', data.size);
     
+    // Créer le répertoire temp s'il n'existe pas
+    const tempDir = path.join(__dirname, 'temp');
+    await fs.mkdir(tempDir, { recursive: true });
+    
     // Sauvegarder le fichier temporairement
     const tempInput = path.join(tempDir, 'input.webm');
     const tempOutputPattern = path.join(tempDir, 'segment_%d.webm');
     
-    try {
-      await fs.writeFile(tempInput, Buffer.from(await data.arrayBuffer()));
-      console.log('Temporary input file created:', tempInput);
-    } catch (e) {
-      console.error('Error writing temporary file:', e);
-      return res.status(500).json({ error: `Erreur écriture fichier temporaire: ${e.message}` });
-    }
+    await fs.writeFile(tempInput, Buffer.from(await data.arrayBuffer()));
+    console.log('Temporary input file created:', tempInput);
     
     // Segmenter avec FFmpeg
     try {
@@ -229,4 +212,3 @@ app.get('/health', (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
-
