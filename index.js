@@ -19,7 +19,22 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 const apiKey = process.env.API_KEY; // Clé pour sécuriser l'API
 
 // Middlewares
-app.use(cors());
+// Gestion explicite des en-têtes CORS
+app.use((req, res, next) => {
+  // Autoriser les origines spécifiques (ou '*' pour toutes les origines)
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Remplace '*' par 'https://speak-summarize-now.lovable.app' si tu veux restreindre à cette origine
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
+
+  // Gérer les requêtes préliminaires OPTIONS
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  next();
+});
+
+// Tu peux conserver le middleware cors() si tu veux, mais la gestion explicite ci-dessus est plus contrôlée
 app.use(express.json({ limit: '50mb' }));
 
 // Vérification de la clé API
@@ -32,15 +47,16 @@ const verifyApiKey = (req, res, next) => {
   next();
 };
 
-// Fonction pour exécuter FFmpeg avec transcodage en VP8
+// Fonction pour exécuter FFmpeg avec transcodage en VP8 et Opus
 const runFFmpeg = (inputPath, outputPattern, segmentDuration) => {
   return new Promise((resolve, reject) => {
     console.log(`Running FFmpeg: input=${inputPath}, output=${outputPattern}, duration=${segmentDuration}`);
     
     const args = [
       '-i', inputPath,
-      '-c:v', 'libvpx', // Transcoder la vidéo en VP8 (compatible avec WebM)
-      '-c:a', 'copy',   // Garder l'audio tel quel (Opus est compatible avec WebM)
+      '-c:v', 'libvpx',     // Transcoder la vidéo en VP8 (compatible avec WebM)
+      '-c:a', 'libopus',    // Convertir l'audio en Opus (compatible avec WebM)
+      '-b:a', '128k',       // Définir un bitrate audio (optionnel, ajustable selon tes besoins)
       '-map', '0',
       '-f', 'segment',
       '-segment_time', segmentDuration.toString(),
@@ -88,8 +104,15 @@ app.post('/segment', verifyApiKey, async (req, res) => {
     console.log(`Request params: bucket=${bucket}, path=${videoPath}, segmentDuration=${segmentDuration}`);
     
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("Configuration Supabase manquante dans les variables d'environnement");
-      return res.status(500).json({ error: "Configuration Supabase manquante" });
+      console.error("Configuration Supabase manquante dans les variables d'environnement", {
+        supabaseUrl: supabaseUrl ? "défini" : "non défini",
+        supabaseServiceKey: supabaseServiceKey ? "défini" : "non défini"
+      });
+      return res.status(500).json({
+        error: "Configuration Supabase manquante",
+        supabaseUrl: supabaseUrl ? "défini" : "non défini",
+        supabaseServiceKey: supabaseServiceKey ? "défini" : "non défini"
+      });
     }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
