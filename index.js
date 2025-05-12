@@ -32,15 +32,16 @@ const verifyApiKey = (req, res, next) => {
   next();
 };
 
-// Fonction pour exécuter FFmpeg avec transcodage en VP8
+// Fonction pour exécuter FFmpeg avec transcodage en VP8 et Opus
 const runFFmpeg = (inputPath, outputPattern, segmentDuration) => {
   return new Promise((resolve, reject) => {
     console.log(`Running FFmpeg: input=${inputPath}, output=${outputPattern}, duration=${segmentDuration}`);
     
     const args = [
       '-i', inputPath,
-      '-c:v', 'libvpx', // Transcoder la vidéo en VP8 (compatible avec WebM)
-      '-c:a', 'copy',   // Garder l'audio tel quel (Opus est compatible avec WebM)
+      '-c:v', 'libvpx',     // Transcoder la vidéo en VP8 (compatible avec WebM)
+      '-c:a', 'libopus',    // Convertir l'audio en Opus (compatible avec WebM)
+      '-b:a', '128k',       // Définir un bitrate audio (optionnel, ajustable selon tes besoins)
       '-map', '0',
       '-f', 'segment',
       '-segment_time', segmentDuration.toString(),
