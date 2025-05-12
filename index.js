@@ -26,19 +26,21 @@ app.use(express.json({ limit: '50mb' }));
 const verifyApiKey = (req, res, next) => {
   const providedApiKey = req.headers['x-api-key'];
   if (!apiKey || providedApiKey !== apiKey) {
+    console.error(`Accès non autorisé - Clé API invalide. Reçu: ${providedApiKey}, Attendu: ${apiKey}`);
     return res.status(403).json({ error: 'Accès non autorisé' });
   }
   next();
 };
 
-// Fonction pour exécuter ffmpeg
+// Fonction pour exécuter FFmpeg avec transcodage en VP8
 const runFFmpeg = (inputPath, outputPattern, segmentDuration) => {
   return new Promise((resolve, reject) => {
     console.log(`Running FFmpeg: input=${inputPath}, output=${outputPattern}, duration=${segmentDuration}`);
     
     const args = [
       '-i', inputPath,
-      '-c', 'copy',
+      '-c:v', 'libvpx', // Transcoder la vidéo en VP8 (compatible avec WebM)
+      '-c:a', 'copy',   // Garder l'audio tel quel (Opus est compatible avec WebM)
       '-map', '0',
       '-f', 'segment',
       '-segment_time', segmentDuration.toString(),
@@ -79,12 +81,14 @@ app.post('/segment', verifyApiKey, async (req, res) => {
     const { bucket, path: videoPath, segmentDuration = 120 } = req.body;
     
     if (!bucket || !videoPath) {
+      console.error("Paramètres manquants dans la requête: bucket et path sont requis");
       return res.status(400).json({ error: "Les paramètres 'bucket' et 'path' sont requis" });
     }
     
     console.log(`Request params: bucket=${bucket}, path=${videoPath}, segmentDuration=${segmentDuration}`);
     
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Configuration Supabase manquante dans les variables d'environnement");
       return res.status(500).json({ error: "Configuration Supabase manquante" });
     }
     
